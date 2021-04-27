@@ -4,51 +4,65 @@
 #include <stdio.h>
 #include <epan/packet.h>
 
-proto_tree* addEbRecord(proto_tree *root _U_, tvbuff_t *tvb, gint *pOffs, const gint alignment, const gint rec_alignment, const char * name ) {
+proto_tree* addEbRecord(proto_tree *root _U_, tvbuff_t *tvb, gint *pOffs, const gint adrSelBit, const gint datSelBit, const char * name ) {
     
-    proto_tree *retTree, *wrTree, *rdTree;
-    guint8 wrcnt=tvb_get_guint8(tvb, *pOffs + 2);
-    guint8 rdcnt=tvb_get_guint8(tvb, *pOffs + 3);
-    gint lOffs = *pOffs;
+    //calculate alignments. Possibly better placed in the caller function because its the same for alle records in a packet, but that'd inflate the func sig big time.
+    const gint adrWidth = 1 << adrSelBit; 
+    const gint datWidth = 1 << datSelBit;
+    const gint tmpAlignment  = (adrWidth > datWidth ? adrWidth : datWidth); //Alignment is max of adr and data width ..
+    const gint alignment = tmpAlignment > 2 ? tmpAlignment : 2; // ... but at least 2 bytes
+    const gint rec_alignment = (alignment > 4 ? alignment : 4); // record alignment is Alignment or at least 4 byte
 
-    gint len = EB_REC_HDR_LEN + (wrcnt ? (1+wrcnt+rec_alignment)*alignment : 0) + (rdcnt ? (1+rdcnt)*alignment : 0); //if there are write/read operations, the first 32b field is the adress/return address
+    proto_tree *retTree, *wrTree, *rdTree;
+
+    //get read and write op count beforehand 
+    guint8 wrcnt=tvb_get_guint8(tvb, *pOffs + 2); 
+    guint8 rdcnt=tvb_get_guint8(tvb, *pOffs + 3);
     
+
+    //If 64b (8B) alignment is selected, the buffer offset we were given must be padded to alignment. -> Add 4 to address if alignment is 8B
+    if (alignment == 8)  *pOffs += 4;
+
+    //make local offsset copy
+    gint lOffs = *pOffs;    
+
+    //calculate total record length. if there are write/read operations, the first 32b field is the adress/return address
+    gint len = rec_alignment + (wrcnt ? (1+wrcnt)*alignment : 0) + (rdcnt ? (1+rdcnt)*alignment : 0);
+
+    //create the base tree for this record to return later
     retTree = proto_tree_add_subtree(root, tvb, *pOffs, len, ebrt_eb, NULL, name);
-   
-    proto_tree_add_bitmask(retTree , tvb, *pOffs+0, recf_hdr, ebrec_eb, rechdrbits, ENC_BIG_ENDIAN);
-    lOffs += alignment;
+    proto_tree_add_bitmask(retTree , tvb, *pOffs+0, recf_hdr, ebrec_eb, rechdrbits, ENC_BIG_ENDIAN); //add header
+    lOffs += rec_alignment;
 
     if(wrcnt) {
-        wrTree = proto_tree_add_subtree(retTree, tvb, lOffs, (1+wrcnt)*alignment, ebrt_eb, NULL, "Writes");
-        proto_tree_add_item(wrTree, *recWrAdrWidth[2], tvb, lOffs, alignment, ENC_BIG_ENDIAN);
+        //if there are write ops, create write subrtee, add base address and then handle the write operations
+        wrTree = proto_tree_add_subtree(retTree, tvb, lOffs, (1+rdcnt)*alignment, ebrt_eb, NULL, "Writes");
+        proto_tree_add_item(wrTree, *recWrAdrWidth[adrSelBit], tvb, lOffs+alignment-adrWidth, adrWidth, ENC_BIG_ENDIAN);
         lOffs += alignment;
+        
         for (gint i = 0; i < wrcnt; i++){
-            proto_item *pi = proto_tree_add_item(wrTree, *recDataWidth[2], tvb, lOffs, alignment, ENC_BIG_ENDIAN);
+            proto_item *pi = proto_tree_add_item(wrTree, *recDataWidth[datSelBit], tvb, lOffs+alignment-datWidth, datWidth, ENC_BIG_ENDIAN);
             proto_item_prepend_text(pi, "%3u   ", i);
             lOffs += alignment;
-        }       
+        }     
     }
 
     if(rdcnt) {
+        //if there are read ops, create read subrtee, add readback address and then handle the read operations
         rdTree = proto_tree_add_subtree(retTree, tvb, lOffs, (1+rdcnt)*alignment, ebrt_eb, NULL, "Reads");
-        proto_tree_add_item(rdTree, *recRdAdrWidth[2], tvb, lOffs, alignment, ENC_BIG_ENDIAN);
+        proto_tree_add_item(rdTree, *recRdAdrWidth[adrSelBit], tvb, lOffs+alignment-adrWidth, adrWidth, ENC_BIG_ENDIAN);
+
         lOffs += alignment;
         for (gint i = 0; i < rdcnt; i++){
-            proto_item *pi = proto_tree_add_item(rdTree, *recDataWidth[2], tvb, lOffs, alignment, ENC_BIG_ENDIAN);
+            proto_item *pi = proto_tree_add_item(rdTree, *recDataWidth[datSelBit], tvb, lOffs+alignment-datWidth, datWidth, ENC_BIG_ENDIAN);
             proto_item_prepend_text(pi, "%3u   ", i);
             lOffs += alignment;
         } 
     }
    
-  /*
-    for (gint i = 0; i < wrcnt; i++){
-
-    }
-    */
-    //if(rdcnt) proto_tree *retTree = proto_tree_add_subtree(root, tvb, *pOffs+alignment, *pOffs+(1+rdcnt)*alignment, ebrt_eb, NULL, "Writes");
-
+   //adjust the offset we were given by the record length we just dissected
     *pOffs += len;
-    return retTree;    
+    return retTree; //return the tree for this record
 }
 
 
@@ -99,39 +113,41 @@ dissect_etherbone(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void 
     };
 
     proto_tree_add_bitmask(eb_tree, tvb, offset, hf_wb_hdr, ett_eb, wbhdrbits, ENC_BIG_ENDIAN);
+    //if packet wasnt a probe, we'll need this info later to get the selected widths for record dissection
+    guint8 adrWidth = tvb_get_guint8(tvb, offset) >> 4;
+    guint8 datWidth = tvb_get_guint8(tvb, offset) & 0x0f;
     offset += 1;
-
-/*
-    //FIXME: EB spec says we pad to 64b alignment after header to allow for probe identifiers, but it seems we don't.
-    //What's it gonna be? if we decide to use it, uncomment this code block.
-  
-    proto_tree_add_item(eb_tree, (packet_type !=0 ? hf_probe_id : hf_padding) , tvb, offset, 4, ENC_BIG_ENDIAN);
-    offset += 4;
-*/
     
     //////////////////////// EB HEADER end /////////////////////////
 
     //////////////////////// EB RECORD(s) start /////////////////////////
     if (packet_type == 0) {
+        //if the set bitwidth for address or data is 0, this EB data packet is bad and cannot be further decoded 
+        if (adrWidth == 0 || datWidth == 0) return 0;
 
         proto_tree *rectree = proto_tree_add_subtree(eb_tree, tvb, offset, -1, ebrt_eb, NULL, "Records");
-        char buf[20];
+
+        char buf[30];
         gint i = 0;
         while (tvb_captured_length_remaining(tvb, offset)) {
-            sprintf(buf, "Record %3u", i++ );
-            addEbRecord(rectree, tvb, (gint*)&offset, 4, 0, buf);
+            //add running record number and write/read op count to descriptor
+            sprintf(buf, "#%03u (W%3u R%3u)", i++, tvb_get_guint8(tvb, offset + 2), tvb_get_guint8(tvb, offset + 3) );
+            //dissect the record
+            addEbRecord(rectree, tvb, (gint*)&offset, log2_8bit(adrWidth), log2_8bit(datWidth), buf);
         }
     }
-    //while(tvb_captured_length_remaining(tvb, offset)) {
-        
-    //}
-
     //////////////////////// EB RECORD(s) end /////////////////////////
 
     return tvb_captured_length(tvb);
 }
 
-
+//the specialized version. 8 bit check, val != 0
+guint8 log2_8bit(guint8 val) {
+    for (guint8 i = 0; i < 8; i++) {
+        if (val & (1<<i)) return i;
+    }
+    return -1;
+}
 
 
 
@@ -335,28 +351,28 @@ proto_register_etherbone(void)
             },
 
             {&recf_data8,
-                { "Data", "ebrec.wr.data8",
+                { "Data", "ebrec.dat.data8",
                 FT_UINT8, BASE_HEX,
                 NULL, 0x0,
                 NULL, HFILL}
             },
 
             {&recf_data16,
-                { "Data", "ebrec.wr.data16",
+                { "Data", "ebrec.dat.data16",
                 FT_UINT16, BASE_HEX,
                 NULL, 0x0,
                 NULL, HFILL}
             },
 
             {&recf_data32,
-                { "Data", "ebrec.wr.data32",
+                { "Data", "ebrec.dat.data32",
                 FT_UINT32, BASE_HEX,
                 NULL, 0x0,
                 NULL, HFILL}
             },
 
             {&recf_data64,
-                { "Data", "ebrec.wr.data64",
+                { "Data", "ebrec.dat.data64",
                 FT_UINT64, BASE_HEX,
                 NULL, 0x0,
                 NULL, HFILL}

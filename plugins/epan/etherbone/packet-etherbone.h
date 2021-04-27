@@ -137,6 +137,8 @@ static int* const recRdAdrWidth[] = {
         NULL
     };
 
+guint8 log2_8bit(guint8 val);
+
 static int
 dissect_etherbone(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void *data _U_);
 
