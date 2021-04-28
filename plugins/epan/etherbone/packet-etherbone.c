@@ -36,7 +36,7 @@ proto_tree* addEbRecord(proto_tree *root _U_, tvbuff_t *tvb, gint *pOffs, const 
 
     if(wrcnt) {
         //if there are write ops, create write subrtee, add base address and then handle the write operations
-        wrTree = proto_tree_add_subtree(retTree, tvb, lOffs, (1+rdcnt)*alignment, ebrt_eb, NULL, "Writes");
+        wrTree = proto_tree_add_subtree(retTree, tvb, lOffs, (1+wrcnt)*alignment, ebrt_eb, NULL, "Writes");
         proto_tree_add_item(wrTree, *recWrAdrWidth[adrSelBit], tvb, lOffs+alignment-adrWidth, adrWidth, ENC_BIG_ENDIAN);
         lOffs += alignment;
         
