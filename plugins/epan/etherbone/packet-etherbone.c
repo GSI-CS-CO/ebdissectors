@@ -16,8 +16,8 @@ proto_tree* addEbRecord(proto_tree *root _U_, tvbuff_t *tvb, gint *pOffs, const 
     proto_tree *retTree, *wrTree, *rdTree;
 
     //get read and write op count beforehand 
-    guint8 wrcnt=tvb_get_guint8(tvb, *pOffs + 2); 
-    guint8 rdcnt=tvb_get_guint8(tvb, *pOffs + 3);
+    guint8 wrcnt=tvb_get_uint8(tvb, *pOffs + 2); 
+    guint8 rdcnt=tvb_get_uint8(tvb, *pOffs + 3);
     
 
     //If 64b (8B) alignment is selected, the buffer offset we were given must be padded to alignment. -> Add 4 to address if alignment is 8B
@@ -73,10 +73,10 @@ dissect_etherbone(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void 
     
     //////////////////////// EB HEADER start /////////////////////////
     gint offset = 0;
-    guint16 magic_word = tvb_get_guint16(tvb, 0, ENC_BIG_ENDIAN); //Header Magic Word
+    guint16 magic_word = tvb_get_uint16(tvb, 0, ENC_BIG_ENDIAN); //Header Magic Word
 
 
-    guint8 packet_type = tvb_get_guint8(tvb, 2) & (EB_HDR_PROBE_FLAG | EB_HDR_PRESPONSE_FLAG); //Header Probe Flags
+    guint8 packet_type = tvb_get_uint8(tvb, 2) & (EB_HDR_PROBE_FLAG | EB_HDR_PRESPONSE_FLAG); //Header Probe Flags
 
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "EB");
@@ -86,8 +86,8 @@ dissect_etherbone(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void 
         col_add_fstr(pinfo->cinfo, COL_INFO, "Bad EB Magic word 0x%2x", magic_word);
         return -1;
     }    
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
-    val_to_str(packet_type, packettypenames, "Type unknown (0x%2x)"));
+    col_add_fstr(pinfo->cinfo, COL_INFO, "Type %s",
+    val_to_str(pinfo->pool, packet_type, packettypenames, "Unknown (0x%02x)"));
 
 
     proto_item *ti = proto_tree_add_item(tree, proto_etherbone, tvb, 0, -1, ENC_NA);
@@ -114,8 +114,8 @@ dissect_etherbone(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void 
 
     proto_tree_add_bitmask(eb_tree, tvb, offset, hf_wb_hdr, ett_eb, wbhdrbits, ENC_BIG_ENDIAN);
     //if packet wasnt a probe, we'll need this info later to get the selected widths for record dissection
-    guint8 adrWidth = tvb_get_guint8(tvb, offset) >> 4;
-    guint8 datWidth = tvb_get_guint8(tvb, offset) & 0x0f;
+    guint8 adrWidth = tvb_get_uint8(tvb, offset) >> 4;
+    guint8 datWidth = tvb_get_uint8(tvb, offset) & 0x0f;
     offset += 1;
     
     //////////////////////// EB HEADER end /////////////////////////
@@ -131,7 +131,7 @@ dissect_etherbone(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void 
         gint i = 0;
         while (tvb_captured_length_remaining(tvb, offset)) {
             //add running record number and write/read op count to descriptor
-            sprintf(buf, "#%03u (W%3u R%3u)", i++, tvb_get_guint8(tvb, offset + 2), tvb_get_guint8(tvb, offset + 3) );
+            sprintf(buf, "#%03u (W%3u R%3u)", i++, tvb_get_uint8(tvb, offset + 2), tvb_get_uint8(tvb, offset + 3) );
             //dissect the record
             addEbRecord(rectree, tvb, (gint*)&offset, log2_8bit(adrWidth), log2_8bit(datWidth), buf);
         }

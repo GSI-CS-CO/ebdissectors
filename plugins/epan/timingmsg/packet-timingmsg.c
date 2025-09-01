@@ -17,8 +17,8 @@ proto_tree* addEbRecord(proto_tree *root _U_, tvbuff_t *tvb, gint *pOffs, const 
     proto_tree *retTree, *wrTree;
 
     //get read and write op count beforehand 
-    guint8 wrcnt=tvb_get_guint8(tvb, *pOffs + 2); 
-    guint8 rdcnt=tvb_get_guint8(tvb, *pOffs + 3);
+    guint8 wrcnt=tvb_get_uint8(tvb, *pOffs + 2); 
+    guint8 rdcnt=tvb_get_uint8(tvb, *pOffs + 3);
     
 
     //If 64b (8B) alignment is selected, the buffer offset we were given must be padded to alignment. -> Add 4 to address if alignment is 8B
@@ -54,10 +54,10 @@ proto_tree* addEbRecord(proto_tree *root _U_, tvbuff_t *tvb, gint *pOffs, const 
         guint64 id, param, deadline, captured;
         guint16 flags = 0x0;
 
-        id       = tvb_get_guint64(tvb, lOffs, ENC_BIG_ENDIAN); lOffs += 8;
-        param    = tvb_get_guint64(tvb, lOffs, ENC_BIG_ENDIAN); lOffs += 8;
+        id       = tvb_get_uint64(tvb, lOffs, ENC_BIG_ENDIAN); lOffs += 8;
+        param    = tvb_get_uint64(tvb, lOffs, ENC_BIG_ENDIAN); lOffs += 8;
         lOffs += 8; //skip reserved and tef
-        deadline = tvb_get_guint64(tvb, lOffs, ENC_BIG_ENDIAN); lOffs += 8;
+        deadline = tvb_get_uint64(tvb, lOffs, ENC_BIG_ENDIAN); lOffs += 8;
         captured = ts;
 
         createSnoopString(buf, 255, PMODE_HEX | PMODE_VERBOSE | PMODE_UTC, id, param, deadline, captured, flags);
@@ -96,10 +96,10 @@ dissect_timingmsg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void 
 
     //////////////////////// EB HEADER start /////////////////////////
     gint offset = 0;
-    guint16 magic_word = tvb_get_guint16(tvb, 0, ENC_BIG_ENDIAN); //Header Magic Word
+    guint16 magic_word = tvb_get_uint16(tvb, 0, ENC_BIG_ENDIAN); //Header Magic Word
 
 
-    guint8 packet_type = tvb_get_guint8(tvb, 2) & (EB_HDR_PROBE_FLAG | EB_HDR_PRESPONSE_FLAG); //Header Probe Flags
+    guint8 packet_type = tvb_get_uint8(tvb, 2) & (EB_HDR_PROBE_FLAG | EB_HDR_PRESPONSE_FLAG); //Header Probe Flags
     if (packet_type != 0) {return 0;} // no sense dissecting a probe
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "TMSG");
@@ -115,7 +115,7 @@ dissect_timingmsg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void 
 
     /*
     col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
-    val_to_str(packet_type, packettypenames, "Type unknown (0x%2x)"));
+    val_to_str((guint32) packet_type, packettypenames, "Type unknown (0x%02x)"));
     */
 
     proto_item *ti = proto_tree_add_item(tree, proto_timingmsg, tvb, 0, -1, ENC_NA);
@@ -143,8 +143,8 @@ dissect_timingmsg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void 
     */
     //proto_tree_add_bitmask(eb_tree, tvb, offset, hf_wb_hdr, ett_eb, wbhdrbits, ENC_BIG_ENDIAN);
     //if packet wasnt a probe, we'll need this info later to get the selected widths for record dissection
-    guint8 adrWidth = tvb_get_guint8(tvb, offset) >> 4;
-    guint8 datWidth = tvb_get_guint8(tvb, offset) & 0x0f;
+    guint8 adrWidth = tvb_get_uint8(tvb, offset) >> 4;
+    guint8 datWidth = tvb_get_uint8(tvb, offset) & 0x0f;
     
     offset += 1;
     
@@ -161,7 +161,7 @@ dissect_timingmsg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void 
         gint i = 0;
         while (tvb_captured_length_remaining(tvb, offset)) {
             //add running record number and write/read op count to descriptor
-            sprintf(buf, "#%03u (W%3u R%3u)", i++, tvb_get_guint8(tvb, offset + 2), tvb_get_guint8(tvb, offset + 3) );
+            sprintf(buf, "#%03u (W%3u R%3u)", i++, tvb_get_uint8(tvb, offset + 2), tvb_get_uint8(tvb, offset + 3) );
             //dissect the record
             addEbRecord(rectree, tvb, (gint*)&offset, ts, log2_8bit(adrWidth), log2_8bit(datWidth), buf);
         }

@@ -35,7 +35,7 @@ register_plugin_files(plugin.c
   ${DISSECTOR_SRC}
 )
 
-add_plugin_library(timingmsg epan)
+add_wireshark_plugin_library(timingmsg epan)
 
 target_link_libraries(timingmsg epan)
 
