@@ -1,4 +1,5 @@
 _CUSTOM_SUBDIRS_ = \
+  timingmsg \
   etherbone
 
 _CUSTOM_EXTRA_DIST_ = \
@@ -6,4 +7,5 @@ _CUSTOM_EXTRA_DIST_ = \
   Custom.make
 
 _CUSTOM_plugin_ldadd_ = \
-  -dlopen plugins/epan/etherbone/etherbone.la
+  -dlopen plugins/epan/timingmsg/timingmsg.la \
+  -dlopen plugins/epan/timingmsg/etherbone.la
