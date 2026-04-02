@@ -78,6 +78,8 @@ For RPM based distros (RH, Centos, Fedora etc):
 ### Build Wireshark
 
 ```
-cmake .
+cmake -DDUMPCAP_INSTALL_OPTION=capabilities .
 make -j$(nproc)
 ```
+
+**-DDUMPCAP_INSTALL_OPTION=capabilities** is necessary for non-root users to be able to capture on most systems.
