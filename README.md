@@ -61,6 +61,20 @@ set(PLUGIN_SRC_DIRS
 )
 ```
 
+### (optional) Install the packages and libraries required to build Wireshark
+
+For Debian based distros (Debian, Ubuntu etc):
+
+```
+./tools/debian-setup.sh
+```
+
+For RPM based distros (RH, Centos, Fedora etc):
+
+```
+./tools/rpm-setup.sh
+```
+
 ### Build Wireshark
 
 ```
